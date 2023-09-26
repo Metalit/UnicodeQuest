@@ -66,7 +66,7 @@ TMP_SpriteAsset* CreateSpriteAsset() {
     spriteAsset->spriteInfoList = List<TMP_Sprite*>::New_ctor();
     spriteAsset->spriteSheet = texture;
 
-    auto mat = Resources::FindObjectsOfTypeAll<Material*>().FirstOrDefault([](auto x) { return x->get_name() == "Teko-Medium SDF Curved Softer"; });
+    auto mat = Resources::FindObjectsOfTypeAll<Material*>().FirstOrDefault([](auto x) { return x->get_name() == "UINoGlow"; });
     spriteAsset->material = Object::Instantiate(mat);
     spriteAsset->material->set_mainTexture(spriteAsset->spriteSheet);
 
