@@ -19,6 +19,8 @@
 #include "TMPro/TMP_SpriteAsset.hpp"
 #include "TMPro/TMP_SpriteCharacter.hpp"
 #include "TMPro/TMP_SpriteGlyph.hpp"
+#include "TMPro/TMP_Text.hpp"
+#include "TMPro/TMP_TextInfo.hpp"
 #include "UnityEngine/Color.hpp"
 #include "UnityEngine/Font.hpp"
 #include "UnityEngine/Material.hpp"
@@ -63,6 +65,18 @@ std::string utf8ToHex(int unicode) {
     std::stringstream stream;
     stream << std::hex << unicode;
     return stream.str();
+}
+
+bool IsCustomAsset(TMP_SpriteAsset* asset) {
+    if (!asset)
+        return false;
+    if (rootEmojiAsset == asset)
+        return true;
+    for (auto customAsset : ListW<UnityW<TMP_SpriteAsset>>(rootEmojiAsset->fallbackSpriteAssets)) {
+        if (customAsset.ptr() == asset)
+            return true;
+    }
+    return false;
 }
 
 TMP_SpriteAsset* CreateSpriteAsset() {
@@ -341,6 +355,21 @@ MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
     return result;
 }
 
+MAKE_HOOK_MATCH(TMP_Text_SaveSpriteVertexInfo, &TMP_Text::SaveSpriteVertexInfo, void, TMP_Text* self, Color32 vertexColor) {
+
+    // this check may not be necessary if there are no other sprite assets in the game
+    std::optional<bool> tintState = std::nullopt;
+    if (IsCustomAsset(self->m_textInfo->characterInfo[self->m_characterCount].spriteAsset)) {
+        tintState = self->m_tintSprite;
+        self->m_tintSprite = true;
+    }
+
+    TMP_Text_SaveSpriteVertexInfo(self, vertexColor);
+
+    if (tintState.has_value())
+        self->m_tintSprite = *tintState;
+}
+
 extern "C" void setup(CModInfo* info) {
     info->id = MOD_ID;
     info->version = VERSION;
@@ -355,5 +384,6 @@ extern "C" void late_load() {
     logger.info("Installing hooks...");
     INSTALL_HOOK(logger, MainFlowCoordinator_DidActivate);
     INSTALL_HOOK(logger, TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset);
+    INSTALL_HOOK(logger, TMP_Text_SaveSpriteVertexInfo);
     logger.info("Installed all hooks!");
 }
