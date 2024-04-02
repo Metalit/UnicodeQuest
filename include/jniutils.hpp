@@ -6,12 +6,9 @@ Copied with permission from https://github.com/BobbyShmurner/jni-utils/blob/mast
 
 */
 
-#include <string>
-
-#include <jni.h>
 #include <android/log.h>
 
-#include "modloader/shared/modloader.hpp"
+#include "scotland2/shared/modloader.h"
 
 // I fucking hate everything.
 
@@ -288,37 +285,37 @@ GET_FIELD_GENERIC(env, varName, object, fieldName, sig, jstring, GetObjectField)
 GET_STATIC_FIELD_GENERIC(env, varName, clazz, fieldName, sig, jstring, GetStaticObjectField)
 
 namespace JNIUtils {
-	inline JavaVM* Jvm;
+    // -- Utils Functions --
 
-	// -- Utils Functions --
+    inline JNIEnv* GetJNIEnv() {
+        JNIEnv* env;
 
-	inline JNIEnv* GetJNIEnv() {
-		JNIEnv* env;
+        JavaVMAttachArgs args;
+        args.version = JNI_VERSION_1_6;
+        args.name = NULL;
+        args.group = NULL;
 
-		JavaVMAttachArgs args;
-		args.version = JNI_VERSION_1_6;
-		args.name = NULL;
-		args.group = NULL;
+        modloader_jvm->AttachCurrentThread(&env, &args);
 
-		Jvm->AttachCurrentThread(&env, &args);
+        return env;
+    }
 
-		return env;
-	}
+    inline std::string ToString(jstring str, JNIEnv* env = nullptr) {
+        if (env == nullptr)
+            env = GetJNIEnv();
 
-	inline std::string ToString(jstring str, JNIEnv* env = nullptr) {
-		if (env == nullptr) env = GetJNIEnv();
+        jboolean isCopy = true;
+        return std::string(env->GetStringUTFChars(str, &isCopy));
+    }
 
-		jboolean isCopy = true;
-		return std::string(env->GetStringUTFChars(str, &isCopy));
-	}
+    inline jobject GetAppContext(JNIEnv* env = nullptr) {
+        if (env == nullptr)
+            env = GetJNIEnv();
 
-	inline jobject GetAppContext(JNIEnv* env = nullptr) {
-		if (env == nullptr) env = GetJNIEnv();
+        GET_JCLASS(env, activeThreadClass, "android/app/ActivityThread");
+        CALL_STATIC_JOBJECT_METHOD(env, activeThread, activeThreadClass, "currentActivityThread", "()Landroid/app/ActivityThread;");
 
-		GET_JCLASS(env, activeThreadClass, "android/app/ActivityThread");
-		CALL_STATIC_JOBJECT_METHOD(env, activeThread, activeThreadClass, "currentActivityThread", "()Landroid/app/ActivityThread;");
-
-		CALL_JOBJECT_METHOD(env, appContext, activeThread, "getApplication", "()Landroid/app/Application;");
-		return appContext;
-	}
+        CALL_JOBJECT_METHOD(env, appContext, activeThread, "getApplication", "()Landroid/app/Application;");
+        return appContext;
+    }
 }

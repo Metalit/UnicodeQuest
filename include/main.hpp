@@ -1,7 +1,5 @@
 #pragma once
 
-#include "modloader/shared/modloader.hpp"
+#include "beatsaber-hook/shared/utils/logging.hpp"
 
-#include "beatsaber-hook/shared/utils/hooking.hpp"
-
-Logger& getLogger();
+constexpr auto logger = Paper::ConstLoggerContext(MOD_ID);

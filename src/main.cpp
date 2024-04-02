@@ -1,20 +1,35 @@
 #include "main.hpp"
-#include "jniutils.hpp"
+
+#include <GLES3/gl32.h>
+#include <android/bitmap.h>
+
 #include <cstdint>
-#include <jni.h>
+#include <map>
+#include <sstream>
 #include <string>
 #include <thread>
-#include <map>
 
-static ModInfo modInfo;
-
-Logger& getLogger() {
-    static Logger* logger = new Logger(modInfo, LoggerOptions(false, true));
-    return *logger;
-}
-
-#include "UnityEngine/Color.hpp"
+#include "GlobalNamespace/MainFlowCoordinator.hpp"
+#include "System/Collections/Generic/Dictionary_2.hpp"
+#include "System/IntPtr.hpp"
+#include "TMPro/TMP_FontAsset.hpp"
+#include "TMPro/TMP_FontAssetUtilities.hpp"
+#include "TMPro/TMP_Settings.hpp"
+#include "TMPro/TMP_Sprite.hpp"
 #include "TMPro/TMP_SpriteAsset.hpp"
+#include "TMPro/TMP_SpriteCharacter.hpp"
+#include "TMPro/TMP_SpriteGlyph.hpp"
+#include "UnityEngine/Color.hpp"
+#include "UnityEngine/Font.hpp"
+#include "UnityEngine/Material.hpp"
+#include "UnityEngine/Resources.hpp"
+#include "UnityEngine/Texture2D.hpp"
+#include "UnityEngine/TextureFormat.hpp"
+#include "beatsaber-hook/shared/utils/hooking.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
+#include "jniutils.hpp"
+
+static modloader::ModInfo modInfo = {MOD_ID, VERSION, 0};
 
 using namespace UnityEngine;
 using namespace TMPro;
@@ -38,8 +53,6 @@ struct ThreadGlobals {
 };
 std::map<std::thread::id, ThreadGlobals> jobjects = {};
 
-#include <sstream>
-
 std::string utf8ToInt(int unicode) {
     std::stringstream strm;
     strm << unicode;
@@ -52,30 +65,22 @@ std::string utf8ToHex(int unicode) {
     return stream.str();
 }
 
-#include "UnityEngine/Texture2D.hpp"
-#include "UnityEngine/Material.hpp"
-#include "UnityEngine/Resources.hpp"
-
 TMP_SpriteAsset* CreateSpriteAsset() {
     auto texture = Texture2D::New_ctor(SHEET_SIZE, SHEET_SIZE, TextureFormat::RGBA32, false);
     texture->SetPixels(clearPixels);
     texture->Apply(false, false);
 
     auto spriteAsset = ScriptableObject::CreateInstance<TMP_SpriteAsset*>();
-    spriteAsset->fallbackSpriteAssets = List<TMP_SpriteAsset*>::New_ctor();
-    spriteAsset->spriteInfoList = List<TMP_Sprite*>::New_ctor();
+    spriteAsset->fallbackSpriteAssets = ListW<UnityW<TMP_SpriteAsset>>::New();
+    spriteAsset->spriteInfoList = ListW<TMP_Sprite*>::New();
     spriteAsset->spriteSheet = texture;
 
-    auto mat = Resources::FindObjectsOfTypeAll<Material*>().FirstOrDefault([](auto x) { return x->get_name() == "UINoGlow"; });
+    auto mat = Resources::FindObjectsOfTypeAll<Material*>()->FirstOrDefault([](auto x) { return x->name == std::string_view("UINoGlow"); });
     spriteAsset->material = Object::Instantiate(mat);
-    spriteAsset->material->set_mainTexture(spriteAsset->spriteSheet);
+    spriteAsset->material->mainTexture = spriteAsset->spriteSheet;
 
     return spriteAsset;
 }
-
-#include "TMPro/TMP_Sprite.hpp"
-#include "TMPro/TMP_SpriteGlyph.hpp"
-#include "TMPro/TMP_SpriteCharacter.hpp"
 
 TMP_SpriteGlyph* PushSprite(int unicode) {
     if (currentEmojiIndex >= SHEET_TILES * SHEET_TILES) {
@@ -91,20 +96,20 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     int row = currentEmojiIndex / SHEET_TILES;
 
     auto glyph = TMP_SpriteGlyph::New_ctor();
-    glyph->set_index(currentEmojiIndex);
-    glyph->set_metrics(TextCore::GlyphMetrics(EMOJI_SIZE, EMOJI_SIZE, 0.25 * EMOJI_SIZE, 0.75 * EMOJI_SIZE, EMOJI_SIZE));
-    glyph->set_glyphRect(TextCore::GlyphRect(column * EMOJI_SIZE, SHEET_SIZE - ((row + 1) * EMOJI_SIZE), EMOJI_SIZE, EMOJI_SIZE));
+    glyph->index = currentEmojiIndex;
+    glyph->metrics = TextCore::GlyphMetrics(EMOJI_SIZE, EMOJI_SIZE, 0.25 * EMOJI_SIZE, 0.75 * EMOJI_SIZE, EMOJI_SIZE);
+    glyph->glyphRect = TextCore::GlyphRect(column * EMOJI_SIZE, SHEET_SIZE - ((row + 1) * EMOJI_SIZE), EMOJI_SIZE, EMOJI_SIZE);
 
     if (!currentEmojiAsset->m_SpriteGlyphTable)
-        currentEmojiAsset->m_SpriteGlyphTable = List<TMP_SpriteGlyph*>::New_ctor();
+        currentEmojiAsset->m_SpriteGlyphTable = ListW<TMP_SpriteGlyph*>::New();
     currentEmojiAsset->m_SpriteGlyphTable->Add(glyph);
 
     TMP_SpriteCharacter* character = TMP_SpriteCharacter::New_ctor(unicode, glyph);
-    character->set_name(text);
-    character->set_scale(1);
+    character->name = text;
+    character->scale = 1;
 
     if (!currentEmojiAsset->m_SpriteCharacterTable)
-        currentEmojiAsset->m_SpriteCharacterTable = List<TMP_SpriteCharacter*>::New_ctor();
+        currentEmojiAsset->m_SpriteCharacterTable = ListW<TMP_SpriteCharacter*>::New();
     currentEmojiAsset->m_SpriteCharacterTable->Add(character);
 
     currentEmojiAsset->SortGlyphTable();
@@ -113,9 +118,12 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     return glyph;
 }
 
-#include <android/bitmap.h>
-#include <GLES3/gl32.h>
+// #include "UnityEngine/Graphics.hpp"
 // #include "UnityEngine/ImageConversion.hpp"
+// #include "UnityEngine/Rect.hpp"
+// #include "UnityEngine/RenderTexture.hpp"
+// #include "UnityEngine/RenderTextureFormat.hpp"
+// #include "UnityEngine/RenderTextureReadWrite.hpp"
 
 void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     auto env = JNIUtils::GetJNIEnv();
@@ -129,7 +137,14 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         GET_JCLASS(env, configClass, "android/graphics/Bitmap$Config");
         GET_STATIC_JOBJECT_FIELD(env, config, configClass, "ARGB_8888", "Landroid/graphics/Bitmap$Config;");
         GET_JCLASS(env, bitmapClass, "android/graphics/Bitmap");
-        CALL_STATIC_JOBJECT_METHOD(env, tmpBitmap, bitmapClass, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", EMOJI_SIZE, EMOJI_SIZE, config);
+        CALL_STATIC_JOBJECT_METHOD(env,
+            tmpBitmap,
+            bitmapClass,
+            "createBitmap",
+            "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;",
+            EMOJI_SIZE,
+            EMOJI_SIZE,
+            config);
         globals.bitmap = env->NewGlobalRef(tmpBitmap);
     }
     if (!globals.canvas) {
@@ -159,10 +174,19 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         str = env->NewString((jchar*) tmp, 2);
         l = 2;
     } else {
-        getLogger().info("too big unicode %i", unicode);
+        logger.warn("too big unicode {}", unicode);
         return;
     }
-    CALL_VOID_METHOD(env, globals.canvas, "drawText", "(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V", str, 0, l, (jfloat) 0, (jfloat) EMOJI_SIZE * 0.8, globals.paint);
+    CALL_VOID_METHOD(env,
+        globals.canvas,
+        "drawText",
+        "(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V",
+        str,
+        0,
+        l,
+        (jfloat) 0,
+        (jfloat) EMOJI_SIZE * 0.8,
+        globals.paint);
 
     // debug: saves bitmap with drawn text
     // static bool saved = false;
@@ -172,7 +196,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     //     NEW_JOBJECT(env, fout, foutClass, "(Ljava/lang/String;)V", env->NewStringUTF("/sdcard/bitmap.png"));
     //     GET_JCLASS(env, cmpClass, "android/graphics/Bitmap$CompressFormat");
     //     GET_STATIC_JOBJECT_FIELD(env, cmp, cmpClass, "PNG", "Landroid/graphics/Bitmap$CompressFormat;");
-    //     CALL_JBOOLEAN_METHOD(env, savebool, globals.bitmap, "compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z", cmp, 100, fout);
+    //     CALL_JBOOLEAN_METHOD(
+    //         env, savebool, globals.bitmap, "compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z", cmp, 100, fout);
     //     saved = true;
     // }
 
@@ -213,7 +238,9 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     AndroidBitmap_unlockPixels(env, globals.bitmap);
 
     auto tex = Texture2D::New_ctor(EMOJI_SIZE, EMOJI_SIZE, TextureFormat::RGBA32, false);
-    tex->LoadRawTextureData(flippedPixels, pixelsSizeU32 * 4); // size in uint8_t*
+    // tex->LoadRawTextureData(flippedPixels, pixelsSizeU32 * 4);  // size in uint8_t*
+    static auto method = il2cpp_utils::FindMethodUnsafe(tex, "LoadRawTextureData", 2);
+    il2cpp_utils::RunMethod<void, false>(tex, method, System::IntPtr(flippedPixels), pixelsSizeU32 * 4);
     tex->Apply();
 
     // debug: saves texure after copy
@@ -221,9 +248,9 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
     // if (!saved2) {
     //     auto bytes = ImageConversion::EncodeToPNG(tex);
-    //     writefile("/sdcard/char.png", std::string((char*) bytes.begin(), bytes.Length()));
+    //     writefile("/sdcard/char.png", std::string((char*) bytes.begin(), bytes->get_Length()));
     //     saved2 = true;
-    //     getLogger().info("l %i r %i b %i t %i", left, right, lower, upper);
+    //     logger.info("l {} r {} b {} t {}", left, right, lower, upper);
     // }
 
     int column = currentEmojiIndex % SHEET_TILES;
@@ -231,9 +258,10 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     int x = column * EMOJI_SIZE;
     int y = SHEET_SIZE - ((row + 1) * EMOJI_SIZE);
 
-    static auto CopyTexture_Region = il2cpp_utils::resolve_icall<void, UnityEngine::Texture*, int, int, int, int, int, int, UnityEngine::Texture*, int, int, int, int>
-        ("UnityEngine.Graphics::CopyTexture_Region");
-    CopyTexture_Region(tex, 0, 0, 0, 0, tex->get_width(), tex->get_height(), currentEmojiAsset->spriteSheet, 0, 0, x, y);
+    static auto CopyTexture_Region =
+        il2cpp_utils::resolve_icall<void, UnityEngine::Texture*, int, int, int, int, int, int, UnityEngine::Texture*, int, int, int, int>(
+            "UnityEngine.Graphics::CopyTexture_Region");
+    CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
 
     // add a little bit of spacing
     right = std::min(right + (EMOJI_SIZE / 10), EMOJI_SIZE);
@@ -246,31 +274,25 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // if (height < 0)
     //     height = 0;
     // y += lower;
-    glyph->set_metrics(TextCore::GlyphMetrics(width, height, 0.125 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width));
-    glyph->set_glyphRect(TextCore::GlyphRect(x, y, width, height));
+    glyph->metrics = TextCore::GlyphMetrics(width, height, 0.125 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width);
+    glyph->glyphRect = TextCore::GlyphRect(x, y, width, height);
 
     currentEmojiAsset->SortGlyphTable();
     currentEmojiAsset->UpdateLookupTables();
 }
 
-#include "GlobalNamespace/MainFlowCoordinator.hpp"
-#include "UnityEngine/Font.hpp"
-#include "TMPro/TMP_Settings.hpp"
-#include "TMPro/TMP_FontAsset.hpp"
-
 using namespace GlobalNamespace;
 
-MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate, &MainFlowCoordinator::DidActivate, void, MainFlowCoordinator* self, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling) {
+MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate,
+    &MainFlowCoordinator::DidActivate,
+    void,
+    MainFlowCoordinator* self,
+    bool firstActivation,
+    bool addedToHierarchy,
+    bool screenSystemEnabling) {
 
     if (!added) {
-        static auto Font_GetDefault = il2cpp_utils::resolve_icall<Font*>
-            ("UnityEngine.Font::GetDefault");
-        auto asset = TMP_FontAsset::CreateFontAsset(Font_GetDefault());
-        TMP_Settings::get_fallbackFontAssets()->Add(asset);
-
         clearPixels = ArrayW<Color>(SHEET_SIZE * SHEET_SIZE);
-        // for (size_t i = 0; i < SHEET_SIZE * SHEET_SIZE; i++)
-        //     clearPixels[i] = Color(0, 0, 0, 0);
 
         rootEmojiAsset = CreateSpriteAsset();
         currentEmojiAsset = rootEmojiAsset;
@@ -283,59 +305,55 @@ MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate, &MainFlowCoordinator::DidActiva
     MainFlowCoordinator_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 }
 
-// #include "UnityEngine/RenderTexture.hpp"
-// #include "UnityEngine/Graphics.hpp"
-// #include "UnityEngine/ImageConversion.hpp"
+MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
+    &TMP_FontAssetUtilities::GetSpriteCharacterFromSpriteAsset,
+    TMP_SpriteCharacter*,
+    uint unicode,
+    TMP_SpriteAsset* spriteAsset,
+    bool includeFallbacks) {
 
-MAKE_HOOK_MATCH(TMP_SpriteAsset_SearchForSpriteByUnicode, &TMP_SpriteAsset::SearchForSpriteByUnicode, TMP_SpriteAsset*, TMP_SpriteAsset* spriteAsset, uint unicode, bool includeFallbacks, ByRef<int> spriteIndex) {
+    auto result = TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset(unicode, spriteAsset, includeFallbacks);
 
-    auto result = TMP_SpriteAsset_SearchForSpriteByUnicode(spriteAsset, unicode, includeFallbacks, spriteIndex);
-
-    if (!result) {
-        getLogger().debug("unicode %i", unicode);
+    if (!result && spriteAsset == rootEmojiAsset) {
+        logger.debug("unicode {}", unicode);
 
         auto glyph = PushSprite(unicode);
 
         DrawTexture(unicode, glyph);
+        currentEmojiIndex++;
 
-        result = currentEmojiAsset;
-        *spriteIndex = currentEmojiIndex++;
+        currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(unicode, byref(result));
 
         // debug: saves whole sprite sheet
-        // auto tex = (Texture2D*) currentEmojiAsset->spriteSheet;
-        // auto tmp = RenderTexture::GetTemporary(tex->get_width(), tex->get_height(), 0, RenderTextureFormat::ARGB32, RenderTextureReadWrite::Linear);
+        // auto tex = (Texture2D*) currentEmojiAsset->spriteSheet.ptr();
+        // auto tmp = RenderTexture::GetTemporary(tex->width, tex->height, 0, RenderTextureFormat::ARGB32, RenderTextureReadWrite::Linear);
         // Graphics::Blit(tex, tmp);
         // auto previous = RenderTexture::get_active();
         // RenderTexture::set_active(tmp);
-        // auto readable = Texture2D::New_ctor(tex->get_width(), tex->get_height());
-        // readable->ReadPixels({0, 0, (float) tex->get_width(), (float) tex->get_height()}, 0, 0, false);
+        // auto readable = Texture2D::New_ctor(tex->width, tex->height);
+        // readable->ReadPixels({0, 0, (float) tex->width, (float) tex->height}, 0, 0, false);
         // readable->Apply();
         // RenderTexture::set_active(previous);
         // RenderTexture::ReleaseTemporary(tmp);
         // auto bytes = ImageConversion::EncodeToPNG(readable);
-        // writefile("/sdcard/sprites.png", std::string((char*) bytes.begin(), bytes.Length()));
+        // writefile("/sdcard/sprites.png", std::string((char*) bytes.begin(), bytes->get_Length()));
     }
-
     return result;
 }
 
-extern "C" void setup(ModInfo& info) {
-    info.id = MOD_ID;
-    info.version = VERSION;
-    modInfo = info;
+extern "C" void setup(CModInfo* info) {
+    info->id = MOD_ID;
+    info->version = VERSION;
+    modInfo.assign(*info);
 
-    getLogger().info("Attaching JNI");
-    JNIEnv* env = Modloader::getJni();
-    env->GetJavaVM(&JNIUtils::Jvm);
-
-    getLogger().info("Completed setup!");
+    logger.info("Completed setup!");
 }
 
-extern "C" void load() {
+extern "C" void late_load() {
     il2cpp_functions::Init();
 
-    getLogger().info("Installing hooks...");
-    INSTALL_HOOK(getLogger(), MainFlowCoordinator_DidActivate);
-    INSTALL_HOOK(getLogger(), TMP_SpriteAsset_SearchForSpriteByUnicode);
-    getLogger().info("Installed all hooks!");
+    logger.info("Installing hooks...");
+    INSTALL_HOOK(logger, MainFlowCoordinator_DidActivate);
+    INSTALL_HOOK(logger, TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset);
+    logger.info("Installed all hooks!");
 }
