@@ -79,6 +79,35 @@ bool IsCustomAsset(TMP_SpriteAsset* asset) {
     return false;
 }
 
+bool currentIsBold;
+bool currentIsItalic;
+bool currentIsUnderline;
+bool currentIsStrikethrough;
+
+// I think 11 possible styles can fit in a uint32 given the max unicode character is 0x10ffff = 1,114,111
+// maybe more if some are incompatible?
+int GetStyleMultiplier() {
+    int ret = 1;
+    if (currentIsBold)
+        ret += 1;
+    if (currentIsItalic)
+        ret += 2;
+    if (currentIsUnderline)
+        ret += 4;
+    if (currentIsStrikethrough)
+        ret += 8;
+    return ret;
+}
+// https://developer.android.com/reference/android/graphics/Typeface#constants_1
+int GetTypefaceStyle() {
+    int ret = 0;
+    if (currentIsBold)
+        ret += 1;
+    if (currentIsItalic)
+        ret += 2;
+    return ret;
+}
+
 TMP_SpriteAsset* CreateSpriteAsset() {
     auto texture = Texture2D::New_ctor(SHEET_SIZE, SHEET_SIZE, TextureFormat::RGBA32, false);
     texture->SetPixels(clearPixels);
@@ -176,6 +205,15 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     }
 
     CALL_VOID_METHOD(env, globals.bitmap, "eraseColor", "(I)V", 0);
+
+    GET_JCLASS(env, typefaceClass, "android/graphics/Typeface");
+    GET_STATIC_JOBJECT_FIELD(env, defaultTypeface, typefaceClass, "DEFAULT", "Landroid/graphics/Typeface;");
+    CALL_STATIC_JOBJECT_METHOD(
+        env, typeface, typefaceClass, "create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;", defaultTypeface, GetTypefaceStyle());
+    CALL_JOBJECT_METHOD(env, _unused, globals.paint, "setTypeface", "(Landroid/graphics/Typeface;)Landroid/graphics/Typeface;", typeface);
+    CALL_VOID_METHOD(env, globals.paint, "setUnderlineText", "(Z)V", currentIsUnderline);
+    CALL_VOID_METHOD(env, globals.paint, "setStrikeThruText", "(Z)V", currentIsStrikethrough);
+
     jstring str;
     int l = 1;
     if (unicode < 0xffff)
@@ -319,6 +357,24 @@ MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate,
     MainFlowCoordinator_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 }
 
+MAKE_HOOK_MATCH(TMP_Text_GetTextElement,
+    &TMP_Text::GetTextElement,
+    TMP_TextElement*,
+    TMP_Text* self,
+    uint unicode,
+    TMP_FontAsset* fontAsset,
+    FontStyles fontStyle,
+    FontWeight fontWeight,
+    ByRef<bool> isUsingAlternativeTypeface) {
+
+    currentIsBold = (int) fontStyle & (int) FontStyles::Bold;
+    currentIsItalic = (int) fontStyle & (int) FontStyles::Italic;
+    currentIsUnderline = (int) fontStyle & (int) FontStyles::Underline;
+    currentIsStrikethrough = (int) fontStyle & (int) FontStyles::Strikethrough;
+
+    return TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
+}
+
 MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
     &TMP_FontAssetUtilities::GetSpriteCharacterFromSpriteAsset,
     TMP_SpriteCharacter*,
@@ -326,14 +382,19 @@ MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
     TMP_SpriteAsset* spriteAsset,
     bool includeFallbacks) {
 
+    uint unmultiplied = unicode;
+    // don't multiply multible times for the fallbacks
+    if (spriteAsset == rootEmojiAsset)
+        unicode *= GetStyleMultiplier();
+
     auto result = TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset(unicode, spriteAsset, includeFallbacks);
 
     if (!result && spriteAsset == rootEmojiAsset) {
-        logger.debug("unicode {}", unicode);
+        logger.debug("unicode {} with style {}", unmultiplied, unicode);
 
         auto glyph = PushSprite(unicode);
 
-        DrawTexture(unicode, glyph);
+        DrawTexture(unmultiplied, glyph);
         currentEmojiIndex++;
 
         currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(unicode, byref(result));
@@ -383,6 +444,7 @@ extern "C" void late_load() {
 
     logger.info("Installing hooks...");
     INSTALL_HOOK(logger, MainFlowCoordinator_DidActivate);
+    INSTALL_HOOK(logger, TMP_Text_GetTextElement);
     INSTALL_HOOK(logger, TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset);
     INSTALL_HOOK(logger, TMP_Text_SaveSpriteVertexInfo);
     logger.info("Installed all hooks!");
