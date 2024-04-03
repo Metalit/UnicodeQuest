@@ -83,10 +83,11 @@ bool currentIsBold;
 bool currentIsItalic;
 bool currentIsUnderline;
 bool currentIsStrikethrough;
+constexpr int maxUnicode = 0x10ffff;
 
 // I think 11 possible styles can fit in a uint32 given the max unicode character is 0x10ffff = 1,114,111
 // maybe more if some are incompatible?
-int GetStyleMultiplier() {
+int GetStyleOffset() {
     int ret = 1;
     if (currentIsBold)
         ret += 1;
@@ -96,7 +97,7 @@ int GetStyleMultiplier() {
         ret += 4;
     if (currentIsStrikethrough)
         ret += 8;
-    return ret;
+    return maxUnicode * ret;
 }
 // https://developer.android.com/reference/android/graphics/Typeface#constants_1
 int GetTypefaceStyle() {
@@ -218,7 +219,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     int l = 1;
     if (unicode < 0xffff)
         str = env->NewString((jchar*) &unicode, 1);
-    else if (unicode < 0x10ffff) {
+    else if (unicode < maxUnicode) {
         uint n = unicode - 0x10000;
         jchar tmp[2];
         tmp[0] = 0xd800 | (n >> 10);
@@ -382,19 +383,19 @@ MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
     TMP_SpriteAsset* spriteAsset,
     bool includeFallbacks) {
 
-    uint unmultiplied = unicode;
-    // don't multiply multible times for the fallbacks
+    uint originalUnicode = unicode;
+    // don't offset multible times for the fallbacks
     if (spriteAsset == rootEmojiAsset)
-        unicode *= GetStyleMultiplier();
+        unicode += GetStyleOffset();
 
     auto result = TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset(unicode, spriteAsset, includeFallbacks);
 
     if (!result && spriteAsset == rootEmojiAsset) {
-        logger.debug("unicode {} with style {}", unmultiplied, unicode);
+        logger.debug("unicode {} with style {}", originalUnicode, unicode);
 
         auto glyph = PushSprite(unicode);
 
-        DrawTexture(unmultiplied, glyph);
+        DrawTexture(originalUnicode, glyph);
         currentEmojiIndex++;
 
         currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(unicode, byref(result));
