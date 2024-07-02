@@ -6,7 +6,7 @@
     "info": {
       "name": "Unicode",
       "id": "unicode",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "url": null,
       "additionalData": {
         "overrideSoName": "libunicode.so"
