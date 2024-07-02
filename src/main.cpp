@@ -175,9 +175,10 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     auto id = std::this_thread::get_id();
     if (!jobjects.contains(id))
         jobjects[id] = {};
-    auto globals = jobjects[id];
+    auto& globals = jobjects[id];
 
     if (!globals.bitmap) {
+        logger.debug("creating bitmap for thread {}", std::hash<std::thread::id>{}(id));
         GET_JCLASS(env, configClass, "android/graphics/Bitmap$Config");
         GET_STATIC_JOBJECT_FIELD(env, config, configClass, "ARGB_8888", "Landroid/graphics/Bitmap$Config;");
         GET_JCLASS(env, bitmapClass, "android/graphics/Bitmap");
@@ -192,11 +193,13 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         globals.bitmap = env->NewGlobalRef(tmpBitmap);
     }
     if (!globals.canvas) {
+        logger.debug("creating canvas for thread {}", std::hash<std::thread::id>{}(id));
         GET_JCLASS(env, canvasClass, "android/graphics/Canvas");
         NEW_JOBJECT(env, tmpCanvas, canvasClass, "(Landroid/graphics/Bitmap;)V", globals.bitmap);
         globals.canvas = env->NewGlobalRef(tmpCanvas);
     }
     if (!globals.paint) {
+        logger.debug("creating paint for thread {}", std::hash<std::thread::id>{}(id));
         GET_JCLASS(env, paintClass, "android/graphics/Paint");
         NEW_JOBJECT(env, tmpPaint, paintClass, "()V");
         CALL_VOID_METHOD(env, tmpPaint, "setTextSize", "(F)V", (jfloat) EMOJI_SIZE * 0.75);
