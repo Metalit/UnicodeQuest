@@ -182,14 +182,9 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         GET_JCLASS(env, configClass, "android/graphics/Bitmap$Config");
         GET_STATIC_JOBJECT_FIELD(env, config, configClass, "ARGB_8888", "Landroid/graphics/Bitmap$Config;");
         GET_JCLASS(env, bitmapClass, "android/graphics/Bitmap");
-        CALL_STATIC_JOBJECT_METHOD(env,
-            tmpBitmap,
-            bitmapClass,
-            "createBitmap",
-            "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;",
-            EMOJI_SIZE,
-            EMOJI_SIZE,
-            config);
+        CALL_STATIC_JOBJECT_METHOD(
+            env, tmpBitmap, bitmapClass, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", EMOJI_SIZE, EMOJI_SIZE, config
+        );
         globals.bitmap = env->NewGlobalRef(tmpBitmap);
     }
     if (!globals.canvas) {
@@ -213,7 +208,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     GET_JCLASS(env, typefaceClass, "android/graphics/Typeface");
     GET_STATIC_JOBJECT_FIELD(env, defaultTypeface, typefaceClass, "DEFAULT", "Landroid/graphics/Typeface;");
     CALL_STATIC_JOBJECT_METHOD(
-        env, typeface, typefaceClass, "create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;", defaultTypeface, GetTypefaceStyle());
+        env, typeface, typefaceClass, "create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;", defaultTypeface, GetTypefaceStyle()
+    );
     CALL_JOBJECT_METHOD(env, _unused, globals.paint, "setTypeface", "(Landroid/graphics/Typeface;)Landroid/graphics/Typeface;", typeface);
     CALL_VOID_METHOD(env, globals.paint, "setUnderlineText", "(Z)V", currentIsUnderline);
     CALL_VOID_METHOD(env, globals.paint, "setStrikeThruText", "(Z)V", currentIsStrikethrough);
@@ -233,7 +229,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         logger.warn("too big unicode {}", unicode);
         return;
     }
-    CALL_VOID_METHOD(env,
+    CALL_VOID_METHOD(
+        env,
         globals.canvas,
         "drawText",
         "(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V",
@@ -242,7 +239,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         l,
         (jfloat) 0,
         (jfloat) EMOJI_SIZE * 0.8,
-        globals.paint);
+        globals.paint
+    );
 
     // debug: saves bitmap with drawn text
     // static bool saved = false;
@@ -253,7 +251,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     //     GET_JCLASS(env, cmpClass, "android/graphics/Bitmap$CompressFormat");
     //     GET_STATIC_JOBJECT_FIELD(env, cmp, cmpClass, "PNG", "Landroid/graphics/Bitmap$CompressFormat;");
     //     CALL_JBOOLEAN_METHOD(
-    //         env, savebool, globals.bitmap, "compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z", cmp, 100, fout);
+    //         env, savebool, globals.bitmap, "compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z", cmp, 100, fout
+    //     );
     //     saved = true;
     // }
 
@@ -316,7 +315,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
     static auto CopyTexture_Region =
         il2cpp_utils::resolve_icall<void, UnityEngine::Texture*, int, int, int, int, int, int, UnityEngine::Texture*, int, int, int, int>(
-            "UnityEngine.Graphics::CopyTexture_Region");
+            "UnityEngine.Graphics::CopyTexture_Region"
+        );
     CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
 
     // add a little bit of spacing
@@ -339,14 +339,15 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
 using namespace GlobalNamespace;
 
-MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate,
+MAKE_HOOK_MATCH(
+    MainFlowCoordinator_DidActivate,
     &MainFlowCoordinator::DidActivate,
     void,
     MainFlowCoordinator* self,
     bool firstActivation,
     bool addedToHierarchy,
-    bool screenSystemEnabling) {
-
+    bool screenSystemEnabling
+) {
     if (!added) {
         clearPixels = ArrayW<Color>(SHEET_SIZE * SHEET_SIZE);
 
@@ -361,7 +362,8 @@ MAKE_HOOK_MATCH(MainFlowCoordinator_DidActivate,
     MainFlowCoordinator_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
 }
 
-MAKE_HOOK_MATCH(TMP_Text_GetTextElement,
+MAKE_HOOK_MATCH(
+    TMP_Text_GetTextElement,
     &TMP_Text::GetTextElement,
     TMP_TextElement*,
     TMP_Text* self,
@@ -369,8 +371,8 @@ MAKE_HOOK_MATCH(TMP_Text_GetTextElement,
     TMP_FontAsset* fontAsset,
     FontStyles fontStyle,
     FontWeight fontWeight,
-    ByRef<bool> isUsingAlternativeTypeface) {
-
+    ByRef<bool> isUsingAlternativeTypeface
+) {
     currentIsBold = (int) fontStyle & (int) FontStyles::Bold;
     currentIsItalic = (int) fontStyle & (int) FontStyles::Italic;
     currentIsUnderline = (int) fontStyle & (int) FontStyles::Underline;
@@ -379,13 +381,14 @@ MAKE_HOOK_MATCH(TMP_Text_GetTextElement,
     return TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
 }
 
-MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
+MAKE_HOOK_MATCH(
+    TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
     &TMP_FontAssetUtilities::GetSpriteCharacterFromSpriteAsset,
     TMP_SpriteCharacter*,
     uint unicode,
     TMP_SpriteAsset* spriteAsset,
-    bool includeFallbacks) {
-
+    bool includeFallbacks
+) {
     uint originalUnicode = unicode;
     // don't offset multible times for the fallbacks
     if (spriteAsset == rootEmojiAsset)
@@ -421,7 +424,6 @@ MAKE_HOOK_MATCH(TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
 }
 
 MAKE_HOOK_MATCH(TMP_Text_SaveSpriteVertexInfo, &TMP_Text::SaveSpriteVertexInfo, void, TMP_Text* self, Color32 vertexColor) {
-
     // this check may not be necessary if there are no other sprite assets in the game
     std::optional<bool> tintState = std::nullopt;
     if (IsCustomAsset(self->m_textInfo->characterInfo[self->m_characterCount].spriteAsset)) {
