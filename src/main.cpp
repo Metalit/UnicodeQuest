@@ -3,11 +3,7 @@
 #include <GLES3/gl32.h>
 #include <android/bitmap.h>
 
-#include <cstdint>
 #include <map>
-#include <sstream>
-#include <string>
-#include <thread>
 
 #include "GlobalNamespace/MainFlowCoordinator.hpp"
 #include "System/Collections/Generic/Dictionary_2.hpp"
@@ -29,7 +25,7 @@
 #include "UnityEngine/TextureFormat.hpp"
 #include "beatsaber-hook/shared/utils/hooking.hpp"
 #include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
-#include "jniutils.hpp"
+#include "java.hpp"
 
 static modloader::ModInfo modInfo = {MOD_ID, VERSION, 0};
 
@@ -170,7 +166,7 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
 // #include "UnityEngine/RenderTextureReadWrite.hpp"
 
 void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
-    auto env = JNIUtils::GetJNIEnv();
+    auto env = Java::GetEnv();
 
     auto id = std::this_thread::get_id();
     if (!jobjects.contains(id))
@@ -179,40 +175,54 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
     if (!globals.bitmap) {
         logger.debug("creating bitmap for thread {}", std::hash<std::thread::id>{}(id));
-        GET_JCLASS(env, configClass, "android/graphics/Bitmap$Config");
-        GET_STATIC_JOBJECT_FIELD(env, config, configClass, "ARGB_8888", "Landroid/graphics/Bitmap$Config;");
-        GET_JCLASS(env, bitmapClass, "android/graphics/Bitmap");
-        CALL_STATIC_JOBJECT_METHOD(
-            env, tmpBitmap, bitmapClass, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", EMOJI_SIZE, EMOJI_SIZE, config
+        Java::JNIFrame frame(env, 8);
+
+        auto config = Java::GetField<jobject>(env, {"android/graphics/Bitmap$Config"}, {"ARGB_8888", "Landroid/graphics/Bitmap$Config;"});
+        auto tmpBitmap = Java::RunMethod<jobject>(
+            env,
+            {"android/graphics/Bitmap"},
+            {"createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;"},
+            EMOJI_SIZE,
+            EMOJI_SIZE,
+            config
         );
         globals.bitmap = env->NewGlobalRef(tmpBitmap);
     }
     if (!globals.canvas) {
         logger.debug("creating canvas for thread {}", std::hash<std::thread::id>{}(id));
-        GET_JCLASS(env, canvasClass, "android/graphics/Canvas");
-        NEW_JOBJECT(env, tmpCanvas, canvasClass, "(Landroid/graphics/Bitmap;)V", globals.bitmap);
+        Java::JNIFrame frame(env, 4);
+
+        auto tmpCanvas = Java::NewObject(env, {"android/graphics/Canvas"}, "(Landroid/graphics/Bitmap;)V", globals.bitmap);
         globals.canvas = env->NewGlobalRef(tmpCanvas);
     }
     if (!globals.paint) {
         logger.debug("creating paint for thread {}", std::hash<std::thread::id>{}(id));
-        GET_JCLASS(env, paintClass, "android/graphics/Paint");
-        NEW_JOBJECT(env, tmpPaint, paintClass, "()V");
-        CALL_VOID_METHOD(env, tmpPaint, "setTextSize", "(F)V", (jfloat) EMOJI_SIZE * 0.75);
-        CALL_VOID_METHOD(env, tmpPaint, "setAntiAlias", "(Z)V", true);
-        CALL_VOID_METHOD(env, tmpPaint, "setARGB", "(IIII)V", 255, 255, 255, 255);
+        Java::JNIFrame frame(env, 8);
+
+        auto tmpPaint = Java::NewObject(env, {"android/graphics/Paint"}, "()V");
+        Java::RunMethod(env, tmpPaint, {"setTextSize", "(F)V"}, (float) EMOJI_SIZE * 0.75);
+        Java::RunMethod(env, tmpPaint, {"setAntiAlias", "(Z)V"}, true);
+        Java::RunMethod(env, tmpPaint, {"setARGB", "(IIII)V"}, 255, 255, 255, 255);
         globals.paint = env->NewGlobalRef(tmpPaint);
     }
 
-    CALL_VOID_METHOD(env, globals.bitmap, "eraseColor", "(I)V", 0);
+    Java::JNIFrame frame(env, 24);
 
-    GET_JCLASS(env, typefaceClass, "android/graphics/Typeface");
-    GET_STATIC_JOBJECT_FIELD(env, defaultTypeface, typefaceClass, "DEFAULT", "Landroid/graphics/Typeface;");
-    CALL_STATIC_JOBJECT_METHOD(
-        env, typeface, typefaceClass, "create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;", defaultTypeface, GetTypefaceStyle()
+    Java::RunMethod(env, globals.bitmap, {"eraseColor", "(I)V"}, 0);
+
+    auto defaultTypeface = Java::GetField<jobject>(env, {"android/graphics/Typeface"}, {"DEFAULT", "Landroid/graphics/Typeface;"});
+    auto typeface = Java::RunMethod<jobject>(
+        env,
+        {"android/graphics/Typeface"},
+        {"create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;"},
+        defaultTypeface,
+        GetTypefaceStyle()
     );
-    CALL_JOBJECT_METHOD(env, _unused, globals.paint, "setTypeface", "(Landroid/graphics/Typeface;)Landroid/graphics/Typeface;", typeface);
-    CALL_VOID_METHOD(env, globals.paint, "setUnderlineText", "(Z)V", currentIsUnderline);
-    CALL_VOID_METHOD(env, globals.paint, "setStrikeThruText", "(Z)V", currentIsStrikethrough);
+
+    Java::RunMethod<jobject>(env, globals.paint, {"setTypeface", "(Landroid/graphics/Typeface;)Landroid/graphics/Typeface;"}, typeface);
+
+    Java::RunMethod(env, globals.paint, {"setUnderlineText", "(Z)V"}, currentIsUnderline);
+    Java::RunMethod(env, globals.paint, {"setStrikeThruText", "(Z)V"}, currentIsStrikethrough);
 
     jstring str;
     int l = 1;
@@ -229,16 +239,16 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         logger.warn("too big unicode {}", unicode);
         return;
     }
-    CALL_VOID_METHOD(
+
+    Java::RunMethod(
         env,
         globals.canvas,
-        "drawText",
-        "(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V",
+        {"drawText", "(Ljava/lang/String;IIFFLandroid/graphics/Paint;)V"},
         str,
         0,
         l,
-        (jfloat) 0,
-        (jfloat) EMOJI_SIZE * 0.8,
+        (float) 0,
+        (float) EMOJI_SIZE * 0.8,
         globals.paint
     );
 
@@ -246,15 +256,15 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // static bool saved = false;
 
     // if (!saved) {
-    //     GET_JCLASS(env, foutClass, "java/io/FileOutputStream");
-    //     NEW_JOBJECT(env, fout, foutClass, "(Ljava/lang/String;)V", env->NewStringUTF("/sdcard/bitmap.png"));
-    //     GET_JCLASS(env, cmpClass, "android/graphics/Bitmap$CompressFormat");
-    //     GET_STATIC_JOBJECT_FIELD(env, cmp, cmpClass, "PNG", "Landroid/graphics/Bitmap$CompressFormat;");
-    //     CALL_JBOOLEAN_METHOD(
-    //         env, savebool, globals.bitmap, "compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z", cmp, 100, fout
+    //     auto fOut = Java::NewObject(env, {"java/io/FileOutputStream"}, "(Ljava/lang/String;)V", env->NewStringUTF("/sdcard/bitmap.png"));
+    //     auto cmp = Java::GetField<jobject>(env, {"android/graphics/Bitmap$CompressFormat"}, {"PNG", "Landroid/graphics/Bitmap$CompressFormat;"});
+    //     Java::RunMethod<bool>(
+    //         env, globals.bitmap, {"compress", "(Landroid/graphics/Bitmap$CompressFormat;ILjava/io/OutputStream;)Z"}, cmp, 100, fOut
     //     );
     //     saved = true;
     // }
+
+    frame.pop();
 
     uint32_t* pixels = nullptr;
     AndroidBitmap_lockPixels(env, globals.bitmap, (void**) &pixels);
