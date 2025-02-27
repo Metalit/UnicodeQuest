@@ -40,6 +40,7 @@ namespace Java {
     TYPE_RESOLUTION(long, jlong, Long);
     TYPE_RESOLUTION(float, jfloat, Float);
     TYPE_RESOLUTION(double, jdouble, Double);
+    TYPE_RESOLUTION(jstring, jstring, Object);
 
 #undef TYPE_RESOLUTION
 }

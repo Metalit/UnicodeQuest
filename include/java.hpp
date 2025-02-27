@@ -20,7 +20,7 @@ namespace Java {
     JNIEnv* GetEnv();
 
     jobject NewObject(JNIEnv* env, FindClass clazz, FindMethodID init, ...);
-    jobject NewObject(JNIEnv* env, FindClass clazz, std::string_view init, ...);
+    jobject NewObject(JNIEnv* env, FindClass clazz, std::string init, ...);
 
     template <class T = void>
     T RunMethod(JNIEnv* env, FindClass clazz, FindMethodID method, ...);
@@ -32,6 +32,10 @@ namespace Java {
     void SetField(JNIEnv* env, FindClass clazz, FindFieldID field, T value);
 
     jclass LoadClass(JNIEnv* env, std::string_view dexBytes);
+
+    std::string ConvertString(JNIEnv* env, jstring string);
+
+    std::string GetClassName(JNIEnv* env, jclass clazz);
 
 #define SPECIALIZATION(type) \
     extern template type RunMethod(JNIEnv* env, FindClass clazz, FindMethodID method, ...); \

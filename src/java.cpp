@@ -3,6 +3,13 @@
 #include "jtypes.hpp"
 #include "main.hpp"
 
+struct cleanup {
+    cleanup(std::function<void()> fn) : fn(fn) {}
+    ~cleanup() { fn(); }
+
+    std::function<void()> fn;
+};
+
 JNIEnv* Java::GetEnv() {
     JNIEnv* env;
 
@@ -22,7 +29,7 @@ jclass Java::GetClass(JNIEnv* env, FindClass clazz) {
     if (clazz.instance)
         return env->GetObjectClass(clazz.instance);
     if (!clazz.name.empty())
-        return env->FindClass(clazz.name.data());
+        return env->FindClass(clazz.name.c_str());
     return nullptr;
 }
 
@@ -32,7 +39,10 @@ jmethodID Java::GetMethodID(JNIEnv* env, FindClass clazz, FindMethodID method) {
     jclass foundClass = GetClass(env, clazz);
     if (!foundClass || method.name.empty() || method.signature.empty())
         return nullptr;
-    return env->GetMethodID(foundClass, method.name.data(), method.signature.data());
+    if (clazz.instance)
+        return env->GetMethodID(foundClass, method.name.c_str(), method.signature.c_str());
+    else
+        return env->GetStaticMethodID(foundClass, method.name.c_str(), method.signature.c_str());
     // delete local ref of class?
 }
 
@@ -42,12 +52,16 @@ jfieldID Java::GetFieldID(JNIEnv* env, FindClass clazz, FindFieldID field) {
     jclass foundClass = GetClass(env, clazz);
     if (!foundClass || field.name.empty() || field.signature.empty())
         return nullptr;
-    return env->GetFieldID(foundClass, field.name.data(), field.signature.data());
+    if (clazz.instance)
+        return env->GetFieldID(foundClass, field.name.c_str(), field.signature.c_str());
+    else
+        return env->GetStaticFieldID(foundClass, field.name.c_str(), field.signature.c_str());
 }
 
 jobject Java::NewObject(JNIEnv* env, FindClass clazz, FindMethodID init, ...) {
     va_list va;
     va_start(va, init);
+    cleanup c([&va]() { va_end(va); });
     auto foundClass = GetClass(env, clazz);
     auto foundMethod = GetMethodID(env, foundClass, init);
     if (!foundClass || !foundMethod)
@@ -55,11 +69,12 @@ jobject Java::NewObject(JNIEnv* env, FindClass clazz, FindMethodID init, ...) {
     return env->NewObjectV(foundClass, foundMethod, va);
 }
 
-jobject Java::NewObject(JNIEnv* env, FindClass clazz, std::string_view init, ...) {
+jobject Java::NewObject(JNIEnv* env, FindClass clazz, std::string init, ...) {
     va_list va;
     va_start(va, init);
+    cleanup c([&va]() { va_end(va); });
     auto foundClass = GetClass(env, clazz);
-    auto foundMethod = GetMethodID(env, {foundClass}, {"<init>", init});
+    auto foundMethod = GetMethodID(env, {foundClass, foundClass}, {"<init>", init});
     if (!foundClass || !foundMethod)
         return nullptr;
     return env->NewObjectV(foundClass, foundMethod, va);
@@ -69,19 +84,27 @@ template <class T>
 T Java::RunMethod(JNIEnv* env, FindClass clazz, FindMethodID method, ...) {
     va_list va;
     va_start(va, method);
+    cleanup c([&va, &env]() {
+        va_end(va);
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+            throw std::runtime_error("JNI error in RunMethod");
+        }
+    });
     if (clazz.instance) {
         auto foundMethod = GetMethodID(env, clazz, method);
         if constexpr (std::is_same_v<T, void>)
             std::invoke(TypeResolver<T>::JMethod, env, clazz.instance, foundMethod, va);
         else
-            return std::invoke(TypeResolver<T>::JMethod, env, clazz.instance, foundMethod, va);
+            return (T) std::invoke(TypeResolver<T>::JMethod, env, clazz.instance, foundMethod, va);
     } else {
         auto foundClass = GetClass(env, clazz);
         auto foundMethod = GetMethodID(env, foundClass, method);
         if constexpr (std::is_same_v<T, void>)
             std::invoke(TypeResolver<T>::JStaticMethod, env, foundClass, foundMethod, va);
         else
-            return std::invoke(TypeResolver<T>::JStaticMethod, env, foundClass, foundMethod, va);
+            return (T) std::invoke(TypeResolver<T>::JStaticMethod, env, foundClass, foundMethod, va);
     }
 }
 
@@ -115,15 +138,29 @@ jclass Java::LoadClass(JNIEnv* env, std::string_view dexBytes) {
     // not sure if necessary to run this on the UnityPlayer class
     auto baseClassLoader = RunMethod<jobject>(env, {"com/unity3d/player/UnityPlayer"}, {"getClassLoader", "()Ljava/lang/ClassLoader;"});
 
-    auto classLoader = NewObject(
-        env, {"dalvik/system/InMemoryDexClassLoader"}, "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V", dexBuffer, baseClassLoader
-    );
+    auto classLoader =
+        NewObject(env, {"dalvik/system/InMemoryDexClassLoader"}, "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V", dexBuffer, baseClassLoader);
 
     auto loadedClass = RunMethod<jobject>(
         env, classLoader, {"loadClass", "(Ljava/lang/String;)Ljava/lang/Class;"}, env->NewStringUTF("com.metalit.hollywood.MainClass")
     );
 
     return (jclass) loadedClass;
+}
+
+std::string Java::ConvertString(JNIEnv* env, jstring string) {
+    if (!string)
+        return "";
+    char const* chars = env->GetStringUTFChars(string, nullptr);
+    int length = env->GetStringUTFLength(string);
+    std::string ret(chars, length);
+    env->ReleaseStringUTFChars(string, chars);
+    return ret;
+}
+
+std::string Java::GetClassName(JNIEnv* env, jclass clazz) {
+    jstring string = RunMethod<jstring>(env, {clazz, clazz}, {"getName", "()Ljava/lang/String;"});
+    return ConvertString(env, string);
 }
 
 #define SPECIALIZATION(type) \

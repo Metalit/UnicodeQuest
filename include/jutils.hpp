@@ -2,35 +2,36 @@
 
 #include <jni.h>
 
-#include <string_view>
+#include <string>
 
 namespace Java {
     struct FindClass {
         jclass clazz = nullptr;
         jobject instance = nullptr;
-        std::string_view name = "";
+        std::string name = "";
 
         FindClass(jclass clazz) : clazz(clazz) {}
         FindClass(jobject instance) : instance(instance) {}
-        FindClass(std::string_view name) : name(name) {}
+        FindClass(jclass clazz, jobject instance) : clazz(clazz), instance(instance) {}
+        FindClass(std::string name) : name(name) {}
     };
 
     struct FindMethodID {
         jmethodID method = nullptr;
-        std::string_view name = "";
-        std::string_view signature = "";
+        std::string name = "";
+        std::string signature = "";
 
         FindMethodID(jmethodID method) : method(method) {}
-        FindMethodID(std::string_view name, std::string_view signature) : name(name), signature(signature) {}
+        FindMethodID(std::string name, std::string signature) : name(name), signature(signature) {}
     };
 
     struct FindFieldID {
         jfieldID field = nullptr;
-        std::string_view name = "";
-        std::string_view signature = "";
+        std::string name = "";
+        std::string signature = "";
 
         FindFieldID(jfieldID field) : field(field) {}
-        FindFieldID(std::string_view name, std::string_view signature) : name(name), signature(signature) {}
+        FindFieldID(std::string name, std::string signature) : name(name), signature(signature) {}
     };
 
     jclass GetClass(JNIEnv* env, FindClass clazz);
