@@ -56,12 +56,17 @@
     },
     {
       "id": "bs-cordl",
-      "versionRange": "^4020.0.0",
+      "versionRange": "^4030.0.0",
       "additionalData": {}
     },
     {
       "id": "paper2_scotland2",
       "versionRange": "^4.5.0",
+      "additionalData": {}
+    },
+    {
+      "id": "metacore",
+      "versionRange": "^1.0.0",
       "additionalData": {}
     }
   ]

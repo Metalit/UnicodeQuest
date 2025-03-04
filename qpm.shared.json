@@ -57,12 +57,17 @@
       },
       {
         "id": "bs-cordl",
-        "versionRange": "^4020.0.0",
+        "versionRange": "^4030.0.0",
         "additionalData": {}
       },
       {
         "id": "paper2_scotland2",
         "versionRange": "^4.5.0",
+        "additionalData": {}
+      },
+      {
+        "id": "metacore",
+        "versionRange": "^1.0.0",
         "additionalData": {}
       }
     ]
@@ -70,37 +75,24 @@
   "restoredDependencies": [
     {
       "dependency": {
-        "id": "bs-cordl",
-        "versionRange": "=4020.0.0",
+        "id": "metacore",
+        "versionRange": "=1.0.0",
         "additionalData": {
-          "headersOnly": true,
-          "branchName": "version/v4020_0_0",
-          "compileOptions": {
-            "includePaths": [
-              "include"
-            ],
-            "cppFeatures": [],
-            "cppFlags": [
-              "-DNEED_UNSAFE_CSHARP",
-              "-fdeclspec",
-              "-DUNITY_2021",
-              "-DHAS_CODEGEN",
-              "-Wno-invalid-offsetof"
-            ]
-          }
+          "overrideSoName": "libmetacore.so",
+          "cmake": true
         }
       },
-      "version": "4020.0.0"
+      "version": "1.0.0"
     },
     {
       "dependency": {
         "id": "paper2_scotland2",
-        "versionRange": "=4.5.0",
+        "versionRange": "=4.6.1",
         "additionalData": {
-          "soLink": "https://github.com/Fernthedev/paperlog/releases/download/v4.5.0/libpaper2_scotland2.so",
+          "soLink": "https://github.com/Fernthedev/paperlog/releases/download/v4.6.1/libpaper2_scotland2.so",
           "overrideSoName": "libpaper2_scotland2.so",
-          "modLink": "https://github.com/Fernthedev/paperlog/releases/download/v4.5.0/paper2_scotland2.qmod",
-          "branchName": "version/v4_5_0",
+          "modLink": "https://github.com/Fernthedev/paperlog/releases/download/v4.6.1/paper2_scotland2.qmod",
+          "branchName": "version/v4_6_1",
           "compileOptions": {
             "systemIncludes": [
               "shared/utfcpp/source"
@@ -109,7 +101,19 @@
           "cmake": false
         }
       },
-      "version": "4.5.0"
+      "version": "4.6.1"
+    },
+    {
+      "dependency": {
+        "id": "rapidjson-macros",
+        "versionRange": "=2.1.0",
+        "additionalData": {
+          "headersOnly": true,
+          "branchName": "version/v2_1_0",
+          "cmake": false
+        }
+      },
+      "version": "2.1.0"
     },
     {
       "dependency": {
@@ -126,6 +130,30 @@
         }
       },
       "version": "0.4.0"
+    },
+    {
+      "dependency": {
+        "id": "bs-cordl",
+        "versionRange": "=4030.0.0",
+        "additionalData": {
+          "headersOnly": true,
+          "branchName": "version/v4030_0_0",
+          "compileOptions": {
+            "includePaths": [
+              "include"
+            ],
+            "cppFeatures": [],
+            "cppFlags": [
+              "-DNEED_UNSAFE_CSHARP",
+              "-fdeclspec",
+              "-DUNITY_2021",
+              "-DHAS_CODEGEN",
+              "-Wno-invalid-offsetof"
+            ]
+          }
+        }
+      },
+      "version": "4030.0.0"
     },
     {
       "dependency": {

@@ -25,12 +25,14 @@
 #include "UnityEngine/TextureFormat.hpp"
 #include "beatsaber-hook/shared/utils/hooking.hpp"
 #include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
-#include "java.hpp"
+#include "metacore/shared/java.hpp"
+#include "metacore/shared/unity.hpp"
 
 static modloader::ModInfo modInfo = {MOD_ID, VERSION, 0};
 
 using namespace UnityEngine;
 using namespace TMPro;
+namespace Java = MetaCore::Java;
 
 bool added = false;
 
@@ -175,7 +177,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
     if (!globals.bitmap) {
         logger.debug("creating bitmap for thread {}", std::hash<std::thread::id>{}(id));
-        Java::JNIFrame frame(env, 8);
+        Java::jni_frame frame(env, 8);
 
         auto config = Java::GetField<jobject>(env, {"android/graphics/Bitmap$Config"}, {"ARGB_8888", "Landroid/graphics/Bitmap$Config;"});
         auto tmpBitmap = Java::RunMethod<jobject>(
@@ -190,14 +192,14 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     }
     if (!globals.canvas) {
         logger.debug("creating canvas for thread {}", std::hash<std::thread::id>{}(id));
-        Java::JNIFrame frame(env, 4);
+        Java::jni_frame frame(env, 4);
 
         auto tmpCanvas = Java::NewObject(env, {"android/graphics/Canvas"}, "(Landroid/graphics/Bitmap;)V", globals.bitmap);
         globals.canvas = env->NewGlobalRef(tmpCanvas);
     }
     if (!globals.paint) {
         logger.debug("creating paint for thread {}", std::hash<std::thread::id>{}(id));
-        Java::JNIFrame frame(env, 8);
+        Java::jni_frame frame(env, 8);
 
         auto tmpPaint = Java::NewObject(env, {"android/graphics/Paint"}, "()V");
         Java::RunMethod(env, tmpPaint, {"setTextSize", "(F)V"}, (float) EMOJI_SIZE * 0.75);
@@ -206,7 +208,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         globals.paint = env->NewGlobalRef(tmpPaint);
     }
 
-    Java::JNIFrame frame(env, 24);
+    Java::jni_frame frame(env, 24);
 
     Java::RunMethod(env, globals.bitmap, {"eraseColor", "(I)V"}, 0);
 
@@ -312,8 +314,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // static bool saved2 = false;
 
     // if (!saved2) {
-    //     auto bytes = ImageConversion::EncodeToPNG(tex);
-    //     writefile("/sdcard/char.png", std::string((char*) bytes.begin(), bytes->get_Length()));
+    //     MetaCore::Unity::WriteTexture(tex, "/sdcard/char.png");
     //     saved2 = true;
     //     logger.info("l {} r {} b {} t {}", left, right, lower, upper);
     // }
@@ -418,17 +419,7 @@ MAKE_HOOK_MATCH(
 
         // debug: saves whole sprite sheet
         // auto tex = (Texture2D*) currentEmojiAsset->spriteSheet.ptr();
-        // auto tmp = RenderTexture::GetTemporary(tex->width, tex->height, 0, RenderTextureFormat::ARGB32, RenderTextureReadWrite::Linear);
-        // Graphics::Blit(tex, tmp);
-        // auto previous = RenderTexture::get_active();
-        // RenderTexture::set_active(tmp);
-        // auto readable = Texture2D::New_ctor(tex->width, tex->height);
-        // readable->ReadPixels({0, 0, (float) tex->width, (float) tex->height}, 0, 0, false);
-        // readable->Apply();
-        // RenderTexture::set_active(previous);
-        // RenderTexture::ReleaseTemporary(tmp);
-        // auto bytes = ImageConversion::EncodeToPNG(readable);
-        // writefile("/sdcard/sprites.png", std::string((char*) bytes.begin(), bytes->get_Length()));
+        // MetaCore::Unity::WriteTexture(tex, "/sdcard/sprites.png");
     }
     return result;
 }
