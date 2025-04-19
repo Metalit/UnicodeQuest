@@ -57,7 +57,7 @@
       },
       {
         "id": "bs-cordl",
-        "versionRange": "^4030.0.0",
+        "versionRange": "^4004.0.0",
         "additionalData": {}
       },
       {
@@ -78,7 +78,10 @@
         "id": "metacore",
         "versionRange": "=1.0.0",
         "additionalData": {
+          "soLink": "https://github.com/Metalit/MetaCore/releases/download/v1.0.0/libmetacore.so",
           "overrideSoName": "libmetacore.so",
+          "modLink": "https://github.com/Metalit/MetaCore/releases/download/v1.0.0/MetaCore.qmod",
+          "branchName": "version/v1_0_0",
           "cmake": true
         }
       },
@@ -134,10 +137,10 @@
     {
       "dependency": {
         "id": "bs-cordl",
-        "versionRange": "=4030.0.0",
+        "versionRange": "=4004.0.0",
         "additionalData": {
           "headersOnly": true,
-          "branchName": "version/v4030_0_0",
+          "branchName": "version/v4004_0_0",
           "compileOptions": {
             "includePaths": [
               "include"
@@ -153,22 +156,22 @@
           }
         }
       },
-      "version": "4030.0.0"
+      "version": "4004.0.0"
     },
     {
       "dependency": {
         "id": "beatsaber-hook",
-        "versionRange": "=6.4.0",
+        "versionRange": "=6.4.1",
         "additionalData": {
-          "soLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.0/libbeatsaber-hook.so",
-          "debugSoLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.0/debug_libbeatsaber-hook.so",
+          "soLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.1/libbeatsaber-hook.so",
+          "debugSoLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.1/debug_libbeatsaber-hook.so",
           "overrideSoName": "libbeatsaber-hook.so",
-          "modLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.0/beatsaber-hook.qmod",
-          "branchName": "version/v6_4_0",
+          "modLink": "https://github.com/QuestPackageManager/beatsaber-hook/releases/download/v6.4.1/beatsaber-hook.qmod",
+          "branchName": "version/v6_4_1",
           "cmake": true
         }
       },
-      "version": "6.4.0"
+      "version": "6.4.1"
     },
     {
       "dependency": {

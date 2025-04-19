@@ -177,7 +177,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
 
     if (!globals.bitmap) {
         logger.debug("creating bitmap for thread {}", std::hash<std::thread::id>{}(id));
-        Java::jni_frame frame(env, 8);
+        Java::JNIFrame frame(env, 8);
 
         auto config = Java::GetField<jobject>(env, {"android/graphics/Bitmap$Config"}, {"ARGB_8888", "Landroid/graphics/Bitmap$Config;"});
         auto tmpBitmap = Java::RunMethod<jobject>(
@@ -192,14 +192,14 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     }
     if (!globals.canvas) {
         logger.debug("creating canvas for thread {}", std::hash<std::thread::id>{}(id));
-        Java::jni_frame frame(env, 4);
+        Java::JNIFrame frame(env, 4);
 
         auto tmpCanvas = Java::NewObject(env, {"android/graphics/Canvas"}, "(Landroid/graphics/Bitmap;)V", globals.bitmap);
         globals.canvas = env->NewGlobalRef(tmpCanvas);
     }
     if (!globals.paint) {
         logger.debug("creating paint for thread {}", std::hash<std::thread::id>{}(id));
-        Java::jni_frame frame(env, 8);
+        Java::JNIFrame frame(env, 8);
 
         auto tmpPaint = Java::NewObject(env, {"android/graphics/Paint"}, "()V");
         Java::RunMethod(env, tmpPaint, {"setTextSize", "(F)V"}, (float) EMOJI_SIZE * 0.75);
@@ -208,7 +208,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         globals.paint = env->NewGlobalRef(tmpPaint);
     }
 
-    Java::jni_frame frame(env, 24);
+    Java::JNIFrame frame(env, 24);
 
     Java::RunMethod(env, globals.bitmap, {"eraseColor", "(I)V"}, 0);
 
@@ -314,7 +314,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // static bool saved2 = false;
 
     // if (!saved2) {
-    //     MetaCore::Unity::WriteTexture(tex, "/sdcard/char.png");
+    //     MetaCore::Engine::WriteTexture(tex, "/sdcard/char.png");
     //     saved2 = true;
     //     logger.info("l {} r {} b {} t {}", left, right, lower, upper);
     // }
@@ -419,7 +419,7 @@ MAKE_HOOK_MATCH(
 
         // debug: saves whole sprite sheet
         // auto tex = (Texture2D*) currentEmojiAsset->spriteSheet.ptr();
-        // MetaCore::Unity::WriteTexture(tex, "/sdcard/sprites.png");
+        // MetaCore::Engine::WriteTexture(tex, "/sdcard/sprites.png");
     }
     return result;
 }
