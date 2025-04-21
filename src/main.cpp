@@ -42,7 +42,6 @@ constexpr int SHEET_SIZE = SHEET_TILES * EMOJI_SIZE;
 
 int currentEmojiIndex;
 bool textureNeedsApply;
-ArrayW<Color> clearPixels;
 TMP_SpriteAsset* rootEmojiAsset;
 TMP_SpriteAsset* currentEmojiAsset;
 
@@ -109,8 +108,6 @@ int GetTypefaceStyle() {
 
 TMP_SpriteAsset* CreateSpriteAsset() {
     auto texture = Texture2D::New_ctor(SHEET_SIZE, SHEET_SIZE, TextureFormat::RGBA32, false);
-    texture->SetPixels(clearPixels);
-    texture->Apply(false, false);
 
     auto spriteAsset = ScriptableObject::CreateInstance<TMP_SpriteAsset*>();
     spriteAsset->fallbackSpriteAssets = ListW<UnityW<TMP_SpriteAsset>>::New();
@@ -360,8 +357,6 @@ MAKE_HOOK_MATCH(
     bool screenSystemEnabling
 ) {
     if (!added) {
-        clearPixels = ArrayW<Color>(SHEET_SIZE * SHEET_SIZE);
-
         rootEmojiAsset = CreateSpriteAsset();
         currentEmojiAsset = rootEmojiAsset;
         currentEmojiIndex = 0;
@@ -442,6 +437,8 @@ extern "C" void setup(CModInfo* info) {
     info->id = MOD_ID;
     info->version = VERSION;
     modInfo.assign(*info);
+
+    Paper::Logger::RegisterFileContextId(MOD_ID);
 
     logger.info("Completed setup!");
 }
