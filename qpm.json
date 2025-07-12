@@ -1,11 +1,12 @@
 {
+  "$schema": "https://raw.githubusercontent.com/QuestPackageManager/QPM.Package/refs/heads/main/qpm.schema.json",
   "version": "0.1.0",
   "sharedDir": "shared",
   "dependenciesDir": "extern",
   "info": {
     "name": "Unicode",
     "id": "unicode",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "url": null,
     "additionalData": {
       "overrideSoName": "libunicode.so"
@@ -37,14 +38,18 @@
         "pwsh ./scripts/pull-tombstone.ps1 -analyze"
       ]
     },
-    "qmodIncludeDirs": [],
+    "ndk": "^27.2.12479018",
+    "qmodIncludeDirs": [
+      "build",
+      "extern/lib"
+    ],
     "qmodIncludeFiles": [],
-    "qmodOutput": null
+    "qmodOutput": "Unicode.qmod"
   },
   "dependencies": [
     {
       "id": "beatsaber-hook",
-      "versionRange": "^6.4.0",
+      "versionRange": "^6.4.2",
       "additionalData": {}
     },
     {
@@ -56,17 +61,17 @@
     },
     {
       "id": "bs-cordl",
-      "versionRange": "^4006.0.0",
+      "versionRange": "4007.*",
       "additionalData": {}
     },
     {
       "id": "paper2_scotland2",
-      "versionRange": "^4.5.0",
+      "versionRange": "^4.6.4",
       "additionalData": {}
     },
     {
       "id": "metacore",
-      "versionRange": "^1.3.0",
+      "versionRange": "^1.3.3",
       "additionalData": {}
     }
   ]
