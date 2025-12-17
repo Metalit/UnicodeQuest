@@ -49,7 +49,7 @@
   "dependencies": [
     {
       "id": "beatsaber-hook",
-      "versionRange": "^7.4.0",
+      "versionRange": "=7.4.1",
       "additionalData": {}
     },
     {
@@ -72,6 +72,11 @@
     {
       "id": "metacore",
       "versionRange": "^1.7.0",
+      "additionalData": {}
+    },
+    {
+      "id": "flamingo",
+      "versionRange": "^1.1.2",
       "additionalData": {}
     }
   ]
