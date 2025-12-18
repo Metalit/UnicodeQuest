@@ -117,7 +117,9 @@ TMP_SpriteAsset* CreateSpriteAsset() {
     spriteAsset->spriteSheet = texture;
 
     auto mat = Resources::FindObjectsOfTypeAll<Material*>()->FirstOrDefault([](auto x) { return x->name == std::string_view("UINoGlow"); });
-    spriteAsset->material = Object::Instantiate(mat);
+    auto newMaterial = Object::Instantiate(mat);
+    newMaterial->set_name("UnicodeModMaterial");
+    spriteAsset->material = newMaterial;
     spriteAsset->material->mainTexture = spriteAsset->spriteSheet;
 
     return spriteAsset;
@@ -147,7 +149,7 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
 
     TMP_SpriteCharacter* character = TMP_SpriteCharacter::New_ctor(unicode, glyph);
     character->name = text;
-    character->scale = 1;
+    character->scale = 0.85;
 
     if (!currentEmojiAsset->m_SpriteCharacterTable)
         currentEmojiAsset->m_SpriteCharacterTable = ListW<TMP_SpriteCharacter*>::New();
@@ -337,8 +339,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // if (height < 0)
     //     height = 0;
     // y += lower;
-    glyph->metrics = TextCore::GlyphMetrics(width, height, 0.125 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width);
-    glyph->glyphRect = TextCore::GlyphRect(x, y, width, height);
+    glyph->metrics = TextCore::GlyphMetrics(width, height, 0.1 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width);
+    glyph->glyphRect = TextCore::GlyphRect(x, y + (height * 0.05), width, height * 0.90);
 
     currentEmojiAsset->SortGlyphTable();
     currentEmojiAsset->UpdateLookupTables();
@@ -383,7 +385,8 @@ MAKE_HOOK_MATCH(
     currentIsUnderline = (int) fontStyle & (int) FontStyles::Underline;
     currentIsStrikethrough = (int) fontStyle & (int) FontStyles::Strikethrough;
 
-    return TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
+    // Make sure it gets correct characters before falling back to TMP_Settings.defaultSpriteAsset
+    return TMP_Text_GetTextElement(self, unicode, fontAsset, FontStyles::Normal, FontWeight::Regular, isUsingAlternativeTypeface);
 }
 
 MAKE_HOOK_MATCH(
@@ -396,9 +399,6 @@ MAKE_HOOK_MATCH(
 ) {
     uint originalUnicode = unicode;
 
-    if (unicode < 128) {
-        return TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset(unicode, spriteAsset, includeFallbacks);
-    }
 
     // don't offset multible times for the fallbacks
     if (spriteAsset == rootEmojiAsset)
