@@ -27,6 +27,8 @@
 #include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
 #include "metacore/shared/java.hpp"
 #include "metacore/shared/unity.hpp"
+#include "UnityEngine/Graphics.hpp"
+#include "UnityEngine/Rect.hpp"
 
 static modloader::ModInfo modInfo = {MOD_ID, VERSION, 0};
 
@@ -115,7 +117,9 @@ TMP_SpriteAsset* CreateSpriteAsset() {
     spriteAsset->spriteSheet = texture;
 
     auto mat = Resources::FindObjectsOfTypeAll<Material*>()->FirstOrDefault([](auto x) { return x->name == std::string_view("UINoGlow"); });
-    spriteAsset->material = Object::Instantiate(mat);
+    auto newMaterial = Object::Instantiate(mat);
+    newMaterial->set_name("UnicodeModMaterial");
+    spriteAsset->material = newMaterial;
     spriteAsset->material->mainTexture = spriteAsset->spriteSheet;
 
     return spriteAsset;
@@ -139,13 +143,13 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     glyph->metrics = TextCore::GlyphMetrics(EMOJI_SIZE, EMOJI_SIZE, 0.25 * EMOJI_SIZE, 0.75 * EMOJI_SIZE, EMOJI_SIZE);
     glyph->glyphRect = TextCore::GlyphRect(column * EMOJI_SIZE, SHEET_SIZE - ((row + 1) * EMOJI_SIZE), EMOJI_SIZE, EMOJI_SIZE);
 
-    if (!currentEmojiAsset->m_SpriteGlyphTable)
-        currentEmojiAsset->m_SpriteGlyphTable = ListW<TMP_SpriteGlyph*>::New();
-    currentEmojiAsset->m_SpriteGlyphTable->Add(glyph);
+    if (!currentEmojiAsset->spriteGlyphTable)
+        currentEmojiAsset->spriteGlyphTable = ListW<TMP_SpriteGlyph*>::New();
+    currentEmojiAsset->spriteGlyphTable->Add(glyph);
 
     TMP_SpriteCharacter* character = TMP_SpriteCharacter::New_ctor(unicode, glyph);
     character->name = text;
-    character->scale = 1;
+    character->scale = 0.85;
 
     if (!currentEmojiAsset->m_SpriteCharacterTable)
         currentEmojiAsset->m_SpriteCharacterTable = ListW<TMP_SpriteCharacter*>::New();
@@ -321,11 +325,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     int x = column * EMOJI_SIZE;
     int y = SHEET_SIZE - ((row + 1) * EMOJI_SIZE);
 
-    static auto CopyTexture_Region =
-        il2cpp_utils::resolve_icall<void, UnityEngine::Texture*, int, int, int, int, int, int, UnityEngine::Texture*, int, int, int, int>(
-            "UnityEngine.Graphics::CopyTexture_Region"
-        );
-    CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
+    // Unity 6: Use cordl instead of direct resolve_icall (fixes crash)
+    Graphics::CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
 
     // add a little bit of spacing
     right = std::min(right + (EMOJI_SIZE / 10), EMOJI_SIZE);
@@ -338,8 +339,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     // if (height < 0)
     //     height = 0;
     // y += lower;
-    glyph->metrics = TextCore::GlyphMetrics(width, height, 0.125 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width);
-    glyph->glyphRect = TextCore::GlyphRect(x, y, width, height);
+    glyph->metrics = TextCore::GlyphMetrics(width, height, 0.1 * EMOJI_SIZE, 0.875 * EMOJI_SIZE, width);
+    glyph->glyphRect = TextCore::GlyphRect(x, y + (height * 0.05), width, height * 0.90);
 
     currentEmojiAsset->SortGlyphTable();
     currentEmojiAsset->UpdateLookupTables();
@@ -384,7 +385,8 @@ MAKE_HOOK_MATCH(
     currentIsUnderline = (int) fontStyle & (int) FontStyles::Underline;
     currentIsStrikethrough = (int) fontStyle & (int) FontStyles::Strikethrough;
 
-    return TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
+    // Make sure it gets correct characters before falling back to TMP_Settings.defaultSpriteAsset
+    return TMP_Text_GetTextElement(self, unicode, fontAsset, FontStyles::Normal, FontWeight::Regular, isUsingAlternativeTypeface);
 }
 
 MAKE_HOOK_MATCH(
@@ -396,6 +398,8 @@ MAKE_HOOK_MATCH(
     bool includeFallbacks
 ) {
     uint originalUnicode = unicode;
+
+
     // don't offset multible times for the fallbacks
     if (spriteAsset == rootEmojiAsset)
         unicode += GetStyleOffset();
@@ -422,7 +426,10 @@ MAKE_HOOK_MATCH(
 MAKE_HOOK_MATCH(TMP_Text_SaveSpriteVertexInfo, &TMP_Text::SaveSpriteVertexInfo, void, TMP_Text* self, Color32 vertexColor) {
     // this check may not be necessary if there are no other sprite assets in the game
     std::optional<bool> tintState = std::nullopt;
-    if (IsCustomAsset(self->m_textInfo->characterInfo[self->m_characterCount].spriteAsset)) {
+    auto spriteCharacter = self->m_textInfo->characterInfo[self->m_characterCount].textElement;
+    auto spriteAsset = static_cast<UnityW<TMP_SpriteAsset>>(spriteCharacter->textAsset);
+
+    if (spriteAsset.isAlive() && IsCustomAsset(spriteAsset.ptr())) {
         tintState = self->m_tintSprite;
         self->m_tintSprite = true;
     }

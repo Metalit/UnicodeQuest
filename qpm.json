@@ -6,7 +6,7 @@
   "info": {
     "name": "Unicode",
     "id": "unicode",
-    "version": "0.1.7",
+    "version": "0.2.0",
     "url": null,
     "additionalData": {
       "overrideSoName": "libunicode.so"
@@ -38,7 +38,7 @@
         "pwsh ./scripts/pull-tombstone.ps1 -analyze"
       ]
     },
-    "ndk": "^27.2.12479018",
+    "ndk": "^27.3.13750724",
     "qmodIncludeDirs": [
       "build",
       "extern/lib"
@@ -49,7 +49,7 @@
   "dependencies": [
     {
       "id": "beatsaber-hook",
-      "versionRange": "^6.4.2",
+      "versionRange": "=7.4.1",
       "additionalData": {}
     },
     {
@@ -61,7 +61,7 @@
     },
     {
       "id": "bs-cordl",
-      "versionRange": "^4008.0.0",
+      "versionRange": "^4100.0.0",
       "additionalData": {}
     },
     {
@@ -71,7 +71,12 @@
     },
     {
       "id": "metacore",
-      "versionRange": "^1.4.0",
+      "versionRange": "^1.7.0",
+      "additionalData": {}
+    },
+    {
+      "id": "flamingo",
+      "versionRange": "^1.1.2",
       "additionalData": {}
     }
   ]
