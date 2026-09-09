@@ -1,5 +1,5 @@
 #pragma once
 
-#include "beatsaber-hook/shared/utils/logging.hpp"
+#include "paper2_scotland2/shared/logger.hpp"
 
 constexpr auto logger = Paper::ConstLoggerContext(MOD_ID);

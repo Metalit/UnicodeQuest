@@ -1,9 +1,13 @@
 #include "main.hpp"
 
-#include <GLES3/gl32.h>
-#include <android/bitmap.h>
+#include "beatsaber-hook/shared/hooking.hpp"
+#include "beatsaber-hook/shared/listw.hpp"
+#include "metacore/shared/java.hpp"
+#include "metacore/shared/unity.hpp"
 
 #include <map>
+#include <GLES3/gl32.h>
+#include <android/bitmap.h>
 
 #include "GlobalNamespace/MainFlowCoordinator.hpp"
 #include "System/Collections/Generic/Dictionary_2.hpp"
@@ -19,14 +23,11 @@
 #include "TMPro/TMP_TextInfo.hpp"
 #include "UnityEngine/Color.hpp"
 #include "UnityEngine/Font.hpp"
+#include "UnityEngine/Graphics.hpp"
 #include "UnityEngine/Material.hpp"
 #include "UnityEngine/Resources.hpp"
 #include "UnityEngine/Texture2D.hpp"
 #include "UnityEngine/TextureFormat.hpp"
-#include "beatsaber-hook/shared/utils/hooking.hpp"
-#include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
-#include "metacore/shared/java.hpp"
-#include "metacore/shared/unity.hpp"
 
 static modloader::ModInfo modInfo = {MOD_ID, VERSION, 0};
 
@@ -64,7 +65,7 @@ std::string utf8ToHex(int unicode) {
     return stream.str();
 }
 
-bool IsCustomAsset(TMP_SpriteAsset* asset) {
+bool IsCustomAsset(TMP_Asset* asset) {
     if (!asset)
         return false;
     if (rootEmojiAsset == asset)
@@ -76,32 +77,32 @@ bool IsCustomAsset(TMP_SpriteAsset* asset) {
     return false;
 }
 
-bool currentIsBold;
-bool currentIsItalic;
-bool currentIsUnderline;
-bool currentIsStrikethrough;
 constexpr int maxUnicode = 0x10ffff;
+
+constexpr int operator&(FontStyles lhs, FontStyles rhs) {
+    return (int) lhs & (int) rhs;
+}
 
 // I think 11 possible styles can fit in a uint32 given the max unicode character is 0x10ffff = 1,114,111
 // maybe more if some are incompatible?
-int GetStyleOffset() {
+int GetStyleOffset(FontStyles fontStyle) {
     int ret = 1;
-    if (currentIsBold)
+    if (fontStyle & FontStyles::Bold)
         ret += 1;
-    if (currentIsItalic)
+    if (fontStyle & FontStyles::Italic)
         ret += 2;
-    if (currentIsUnderline)
+    if (fontStyle & FontStyles::Underline)
         ret += 4;
-    if (currentIsStrikethrough)
+    if (fontStyle & FontStyles::Strikethrough)
         ret += 8;
     return maxUnicode * ret;
 }
 // https://developer.android.com/reference/android/graphics/Typeface#constants_1
-int GetTypefaceStyle() {
+int GetTypefaceStyle(FontStyles fontStyle) {
     int ret = 0;
-    if (currentIsBold)
+    if (fontStyle & FontStyles::Bold)
         ret += 1;
-    if (currentIsItalic)
+    if (fontStyle & FontStyles::Italic)
         ret += 2;
     return ret;
 }
@@ -114,7 +115,7 @@ TMP_SpriteAsset* CreateSpriteAsset() {
     spriteAsset->spriteInfoList = ListW<TMP_Sprite*>::New();
     spriteAsset->spriteSheet = texture;
 
-    auto mat = Resources::FindObjectsOfTypeAll<Material*>()->FirstOrDefault([](auto x) { return x->name == std::string_view("UINoGlow"); });
+    auto mat = Resources::FindObjectsOfTypeAll<Material*>().front_or_default([](auto x) { return x->name == std::string_view("UINoGlow"); });
     spriteAsset->material = Object::Instantiate(mat);
     spriteAsset->material->mainTexture = spriteAsset->spriteSheet;
 
@@ -139,9 +140,9 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     glyph->metrics = TextCore::GlyphMetrics(EMOJI_SIZE, EMOJI_SIZE, 0.25 * EMOJI_SIZE, 0.75 * EMOJI_SIZE, EMOJI_SIZE);
     glyph->glyphRect = TextCore::GlyphRect(column * EMOJI_SIZE, SHEET_SIZE - ((row + 1) * EMOJI_SIZE), EMOJI_SIZE, EMOJI_SIZE);
 
-    if (!currentEmojiAsset->m_SpriteGlyphTable)
-        currentEmojiAsset->m_SpriteGlyphTable = ListW<TMP_SpriteGlyph*>::New();
-    currentEmojiAsset->m_SpriteGlyphTable->Add(glyph);
+    if (!currentEmojiAsset->m_GlyphTable)
+        currentEmojiAsset->m_GlyphTable = ListW<TMP_SpriteGlyph*>::New();
+    currentEmojiAsset->m_GlyphTable->Add(glyph);
 
     TMP_SpriteCharacter* character = TMP_SpriteCharacter::New_ctor(unicode, glyph);
     character->name = text;
@@ -157,14 +158,7 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     return glyph;
 }
 
-// #include "UnityEngine/Graphics.hpp"
-// #include "UnityEngine/ImageConversion.hpp"
-// #include "UnityEngine/Rect.hpp"
-// #include "UnityEngine/RenderTexture.hpp"
-// #include "UnityEngine/RenderTextureFormat.hpp"
-// #include "UnityEngine/RenderTextureReadWrite.hpp"
-
-void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
+void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph, FontStyles fontStyle) {
     auto env = Java::GetEnv();
 
     auto id = std::this_thread::get_id();
@@ -215,13 +209,13 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
         {"android/graphics/Typeface"},
         {"create", "(Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;"},
         defaultTypeface,
-        GetTypefaceStyle()
+        GetTypefaceStyle(fontStyle)
     );
 
     Java::RunMethod<jobject>(env, globals.paint, {"setTypeface", "(Landroid/graphics/Typeface;)Landroid/graphics/Typeface;"}, typeface);
 
-    Java::RunMethod(env, globals.paint, {"setUnderlineText", "(Z)V"}, currentIsUnderline);
-    Java::RunMethod(env, globals.paint, {"setStrikeThruText", "(Z)V"}, currentIsStrikethrough);
+    Java::RunMethod(env, globals.paint, {"setUnderlineText", "(Z)V"}, fontStyle & FontStyles::Underline);
+    Java::RunMethod(env, globals.paint, {"setStrikeThruText", "(Z)V"}, fontStyle & FontStyles::Strikethrough);
 
     jstring str;
     int l = 1;
@@ -302,9 +296,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     AndroidBitmap_unlockPixels(env, globals.bitmap);
 
     auto tex = Texture2D::New_ctor(EMOJI_SIZE, EMOJI_SIZE, TextureFormat::RGBA32, false);
-    // tex->LoadRawTextureData(flippedPixels, pixelsSizeU32 * 4);  // size in uint8_t*
-    static auto method = il2cpp_utils::FindMethodUnsafe(tex, "LoadRawTextureData", 2);
-    il2cpp_utils::RunMethod<void, false>(tex, method, System::IntPtr(flippedPixels), pixelsSizeU32 * 4);
+    tex->LoadRawTextureData(flippedPixels, pixelsSizeU32 * 4);  // size in uint8_t*
     tex->Apply();
 
     // debug: saves texure after copy
@@ -321,11 +313,7 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph) {
     int x = column * EMOJI_SIZE;
     int y = SHEET_SIZE - ((row + 1) * EMOJI_SIZE);
 
-    static auto CopyTexture_Region =
-        il2cpp_utils::resolve_icall<void, UnityEngine::Texture*, int, int, int, int, int, int, UnityEngine::Texture*, int, int, int, int>(
-            "UnityEngine.Graphics::CopyTexture_Region"
-        );
-    CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
+    UnityEngine::Graphics::CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
 
     // add a little bit of spacing
     right = std::min(right + (EMOJI_SIZE / 10), EMOJI_SIZE);
@@ -377,40 +365,22 @@ MAKE_HOOK_MATCH(
     TMP_FontAsset* fontAsset,
     FontStyles fontStyle,
     FontWeight fontWeight,
-    ByRef<bool> isUsingAlternativeTypeface
+    by_ref<bool> isUsingAlternativeTypeface
 ) {
-    currentIsBold = (int) fontStyle & (int) FontStyles::Bold;
-    currentIsItalic = (int) fontStyle & (int) FontStyles::Italic;
-    currentIsUnderline = (int) fontStyle & (int) FontStyles::Underline;
-    currentIsStrikethrough = (int) fontStyle & (int) FontStyles::Strikethrough;
+    auto result = TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
 
-    return TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
-}
+    if (!result) {
+        uint withStyle = unicode + GetStyleOffset(fontStyle);
+        logger.debug("unicode {} with style {}", unicode, withStyle);
 
-MAKE_HOOK_MATCH(
-    TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset,
-    &TMP_FontAssetUtilities::GetSpriteCharacterFromSpriteAsset,
-    TMP_SpriteCharacter*,
-    uint unicode,
-    TMP_SpriteAsset* spriteAsset,
-    bool includeFallbacks
-) {
-    uint originalUnicode = unicode;
-    // don't offset multible times for the fallbacks
-    if (spriteAsset == rootEmojiAsset)
-        unicode += GetStyleOffset();
+        auto glyph = PushSprite(withStyle);
 
-    auto result = TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset(unicode, spriteAsset, includeFallbacks);
-
-    if (!result && spriteAsset == rootEmojiAsset) {
-        logger.debug("unicode {} with style {}", originalUnicode, unicode);
-
-        auto glyph = PushSprite(unicode);
-
-        DrawTexture(originalUnicode, glyph);
+        DrawTexture(unicode, glyph, fontStyle);
         currentEmojiIndex++;
 
-        currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(unicode, byref(result));
+        TMP_SpriteCharacter* sprite;
+        currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(withStyle, by_ref(sprite));
+        result = sprite;
 
         // debug: saves whole sprite sheet
         // auto tex = (Texture2D*) currentEmojiAsset->spriteSheet.ptr();
@@ -422,7 +392,7 @@ MAKE_HOOK_MATCH(
 MAKE_HOOK_MATCH(TMP_Text_SaveSpriteVertexInfo, &TMP_Text::SaveSpriteVertexInfo, void, TMP_Text* self, Color32 vertexColor) {
     // this check may not be necessary if there are no other sprite assets in the game
     std::optional<bool> tintState = std::nullopt;
-    if (IsCustomAsset(self->m_textInfo->characterInfo[self->m_characterCount].spriteAsset)) {
+    if (IsCustomAsset(self->m_textInfo->characterInfo[self->m_characterCount].textElement->m_TextAsset)) {
         tintState = self->m_tintSprite;
         self->m_tintSprite = true;
     }
@@ -444,12 +414,9 @@ extern "C" void setup(CModInfo* info) {
 }
 
 extern "C" void late_load() {
-    il2cpp_functions::Init();
-
     logger.info("Installing hooks...");
     INSTALL_HOOK(logger, MainFlowCoordinator_DidActivate);
     INSTALL_HOOK(logger, TMP_Text_GetTextElement);
-    INSTALL_HOOK(logger, TMP_FontAssetUtilities_GetSpriteCharacterFromSpriteAsset);
     INSTALL_HOOK(logger, TMP_Text_SaveSpriteVertexInfo);
     logger.info("Installed all hooks!");
 }
