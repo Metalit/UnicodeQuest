@@ -158,6 +158,23 @@ TMP_SpriteGlyph* PushSprite(int unicode) {
     return glyph;
 }
 
+TMP_SpriteCharacter* FindStyledSprite(uint unicode) {
+    if (!rootEmojiAsset || !rootEmojiAsset->m_CachedPtr.m_value) return nullptr;
+
+    TMP_SpriteCharacter* character = nullptr;
+    auto findIn = [&](TMP_SpriteAsset* asset) {
+        return asset && asset->m_CachedPtr.m_value && asset->m_SpriteCharacterLookup &&
+            asset->m_SpriteCharacterLookup->TryGetValue(unicode, by_ref(character));
+    };
+    if (findIn(rootEmojiAsset)) return character;
+    if (rootEmojiAsset->fallbackSpriteAssets) {
+        for (auto asset : ListW<UnityW<TMP_SpriteAsset>>(rootEmojiAsset->fallbackSpriteAssets)) {
+            if (findIn(asset.ptr())) return character;
+        }
+    }
+    return nullptr;
+}
+
 void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph, FontStyles fontStyle) {
     auto env = Java::GetEnv();
 
@@ -314,6 +331,8 @@ void DrawTexture(uint unicode, TMP_SpriteGlyph* glyph, FontStyles fontStyle) {
     int y = SHEET_SIZE - ((row + 1) * EMOJI_SIZE);
 
     UnityEngine::Graphics::CopyTexture_Region(tex, 0, 0, 0, 0, tex->width, tex->height, currentEmojiAsset->spriteSheet, 0, 0, x, y);
+    // The atlas owns the copied pixels; keep no standalone texture per glyph.
+    UnityEngine::Object::Destroy(tex);
 
     // add a little bit of spacing
     right = std::min(right + (EMOJI_SIZE / 10), EMOJI_SIZE);
@@ -370,7 +389,12 @@ MAKE_HOOK_MATCH(
     auto result = TMP_Text_GetTextElement(self, unicode, fontAsset, fontStyle, fontWeight, isUsingAlternativeTypeface);
 
     if (!result) {
+        if (!rootEmojiAsset || !rootEmojiAsset->m_CachedPtr.m_value ||
+            !currentEmojiAsset || !currentEmojiAsset->m_CachedPtr.m_value) return nullptr;
         uint withStyle = unicode + GetStyleOffset(fontStyle);
+        // The base font searches the original code point, while our atlas uses
+        // a style-specific key. Reuse that key before allocating another glyph.
+        if (auto existing = FindStyledSprite(withStyle)) return existing;
         logger.debug("unicode {} with style {}", unicode, withStyle);
 
         auto glyph = PushSprite(withStyle);
@@ -378,7 +402,7 @@ MAKE_HOOK_MATCH(
         DrawTexture(unicode, glyph, fontStyle);
         currentEmojiIndex++;
 
-        TMP_SpriteCharacter* sprite;
+        TMP_SpriteCharacter* sprite = nullptr;
         currentEmojiAsset->spriteCharacterLookupTable->TryGetValue(withStyle, by_ref(sprite));
         result = sprite;
 
