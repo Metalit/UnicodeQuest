@@ -68,17 +68,17 @@
     },
     {
       "id": "beatsaber-hook",
-      "versionRange": "^8.0.0",
+      "versionRange": "^9.3.0",
       "additionalData": {}
     },
     {
       "id": "bs-cordl",
-      "versionRange": "^4500.0.0",
+      "versionRange": "^4503.0.0",
       "additionalData": {}
     },
     {
       "id": "metacore",
-      "versionRange": "^2.0.2",
+      "versionRange": "^2.0.6",
       "additionalData": {}
     }
   ]
